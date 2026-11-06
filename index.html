@@ -1,0 +1,303 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Consent Camera & Location Sharing</title>
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 25px;
+  background: #101827;
+  color: white;
+  font-family: Arial, sans-serif;
+}
+
+.container {
+  max-width: 650px;
+  margin: auto;
+  background: #1c293b;
+  padding: 25px;
+  border-radius: 16px;
+}
+
+h1 {
+  font-size: 27px;
+}
+
+p {
+  color: #bdc9d8;
+  line-height: 1.6;
+}
+
+.section {
+  margin-top: 25px;
+  padding: 18px;
+  background: #26364b;
+  border-radius: 12px;
+}
+
+label {
+  display: block;
+  margin: 18px 0;
+  line-height: 1.5;
+}
+
+input {
+  margin-right: 10px;
+  transform: scale(1.2);
+}
+
+button {
+  width: 100%;
+  padding: 15px;
+  border: none;
+  border-radius: 9px;
+  background: #2878ed;
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 12px;
+}
+
+.stop {
+  background: #dc3545;
+}
+
+video {
+  width: 100%;
+  margin-top: 15px;
+  border-radius: 10px;
+  background: black;
+}
+
+.result {
+  background: #101827;
+  padding: 14px;
+  border-radius: 9px;
+  margin-top: 12px;
+  overflow-wrap: anywhere;
+}
+
+.hidden {
+  display: none;
+}
+
+small {
+  color: #aab8c8;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>Camera & Location Sharing</h1>
+
+<p>
+This application allows you to voluntarily share
+your camera and current location.
+You control when sharing starts and stops.
+</p>
+
+<div class="section" id="consent">
+
+<h3>Permission & Consent</h3>
+
+<label>
+<input type="checkbox" id="cameraConsent">
+I agree to share my camera.
+</label>
+
+<label>
+<input type="checkbox" id="locationConsent">
+I agree to share my location.
+</label>
+
+<button onclick="startSharing()">
+Start Sharing
+</button>
+
+</div>
+
+<div class="section hidden" id="dashboard">
+
+<h3>Sharing Active</h3>
+
+<p id="status">Waiting for permissions...</p>
+
+<div id="cameraBox" class="hidden">
+<h3>Camera Preview</h3>
+<video id="camera" autoplay muted playsinline></video>
+</div>
+
+<div id="locationBox" class="hidden">
+<h3>My Current Location</h3>
+<div class="result" id="coordinates">
+Waiting for location...
+</div>
+</div>
+
+<button class="stop" onclick="stopSharing()">
+STOP SHARING
+</button>
+
+</div>
+
+<p>
+<small>
+Camera and location access require browser permission.
+HTTPS is required when hosted online.
+</small>
+</p>
+
+</div>
+
+<script>
+let cameraStream = null;
+let locationWatcher = null;
+
+async function startSharing() {
+
+  const cameraAllowed =
+    document.getElementById("cameraConsent").checked;
+
+  const locationAllowed =
+    document.getElementById("locationConsent").checked;
+
+  if (!cameraAllowed && !locationAllowed) {
+    alert("Please select at least one permission.");
+    return;
+  }
+
+  document.getElementById("consent")
+    .classList.add("hidden");
+
+  document.getElementById("dashboard")
+    .classList.remove("hidden");
+
+  document.getElementById("status")
+    .innerText = "Starting selected sharing...";
+
+  if (cameraAllowed) {
+    try {
+      cameraStream =
+        await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        });
+
+      document.getElementById("camera").srcObject =
+        cameraStream;
+
+      document.getElementById("cameraBox")
+        .classList.remove("hidden");
+
+    } catch (error) {
+      alert("Camera access failed: " + error.message);
+    }
+  }
+
+  if (locationAllowed) {
+
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported.");
+    } else {
+
+      locationWatcher =
+        navigator.geolocation.watchPosition(
+
+        function(position) {
+
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+          const accuracy = position.coords.accuracy;
+
+          document.getElementById("coordinates")
+            .innerHTML =
+            "Latitude: " + lat +
+            "<br>Longitude: " + lon +
+            "<br>Accuracy: " + Math.round(accuracy) +
+            " metres" +
+            '<br><a target="_blank" style="color:#65a7ff" href="https://www.google.com/maps?q=' +
+            lat + ',' + lon + '">Open in Google Maps</a>' +
+            "<br>Updated: " + new Date().toLocaleTimeString();
+
+          document.getElementById("locationBox")
+            .classList.remove("hidden");
+
+        },
+
+        function(error) {
+          alert("Location error: " + error.message);
+        },
+
+        {
+          enableHighAccuracy: true,
+          maximumAge: 5000,
+          timeout: 15000
+        });
+
+    }
+  }
+
+  document.getElementById("status").innerText =
+    "Selected sharing is active. Stop whenever you want.";
+}
+
+function stopSharing() {
+
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => {
+      track.stop();
+    });
+    cameraStream = null;
+  }
+
+  if (locationWatcher !== null) {
+    navigator.geolocation.clearWatch(locationWatcher);
+    locationWatcher = null;
+  }
+
+  document.getElementById("camera").srcObject = null;
+
+  document.getElementById("dashboard")
+    .classList.add("hidden");
+
+  document.getElementById("consent")
+    .classList.remove("hidden");
+
+  document.getElementById("cameraConsent").checked = false;
+  document.getElementById("locationConsent").checked = false;
+
+  document.getElementById("status").innerText =
+    "Sharing stopped.";
+
+  document.getElementById("cameraBox")
+    .classList.add("hidden");
+
+  document.getElementById("locationBox")
+    .classList.add("hidden");
+}
+
+window.addEventListener("pagehide", function() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+  }
+
+  if (locationWatcher !== null) {
+    navigator.geolocation.clearWatch(locationWatcher);
+  }
+});
+</script>
+
+</body>
+</html>
